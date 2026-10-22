@@ -1,0 +1,69 @@
+name: Live deployment smoke tests
+on:
+  push:
+    branches: [chore/live-smoke-validation]
+  workflow_dispatch:
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Validate public INDUSIM website and API
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, time, urllib.error, urllib.request
+
+          WEB = "https://indusim-3d-web.onrender.com"
+          API = "https://indusim-3d-api.onrender.com"
+          def request(url, method="GET", obj=None, headers=None, attempts=10):
+              data = None if obj is None else json.dumps(obj).encode("utf-8")
+              h = {"User-Agent": "INDUSIM-3D-live-smoke/1.0"}
+              h.update(headers or {})
+              if obj is not None:
+                  h["Content-Type"] = "application/json"
+              for attempt in range(attempts):
+                  try:
+                      req = urllib.request.Request(url, method=method, data=data, headers=h)
+                      with urllib.request.urlopen(req, timeout=40) as response:
+                          return response.status, dict(response.headers), response.read()
+                  except Exception as err:
+                      if attempt == attempts - 1:
+                          raise
+                      print(f"Retry {attempt+1}: {type(err).__name__}: {str(err)[:140]}", flush=True)
+                      time.sleep(12)
+          status, head, html = request(WEB)
+          assert status == 200, (status, html[:200])
+          assert b'id="root"' in html and b"assets/" in html, html[:600]
+          print("WEB: HTML responsive and references built assets", flush=True)
+
+          status, head, data = request(API+"/api/health")
+          health = json.loads(data)
+          assert status == 200 and health.get("status") == "ok" and health.get("version") == "0.5.0", health
+          print("API: /api/health =>", health, flush=True)
+
+          status, head, data = request(API+"/api/demo")
+          demo = json.loads(data)
+          assert status == 200 and len(demo["plant"]["areas"]) >= 2
+          print("API: /api/demo valid", flush=True)
+
+          payload = {
+              "demand":[10,15],"initial_workers":2,"max_workers":3,
+              "units_per_worker_period":10,
+              "overtime_units_per_worker":2,
+              "max_subcontract_per_period":5,
+              "allow_backlog":False
+          }
+          status,head,data = request(API+"/api/planning/aggregate/v2",method="POST",obj=payload)
+          plan=json.loads(data)
+          assert status==200 and plan["optimal"] and len(plan["periods"])==2, plan
+          print("API: APP MILP optimization succeeded",flush=True)
+
+          status, head, data = request(API+"/api/planning/aggregate/scenarios", method="OPTIONS",
+              headers={"Origin":WEB, "Access-Control-Request-Method":"POST"})
+          assert status == 200, (status, data[:100])
+          cors = {k.lower():v for k,v in head.items()}
+          assert cors.get("access-control-allow-origin") == WEB, cors
+          print("CORS: web origin approved for POST", flush=True)
+          print("ALL LIVE SMOKE TESTS PASSED", flush=True)
+          PY
