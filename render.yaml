@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: indusim-3d-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: FRONTEND_ORIGIN
+        value: https://indusim-3d-web.onrender.com
+  - type: web
+    name: indusim-3d-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://indusim-3d-api.onrender.com
