@@ -2,6 +2,7 @@ import {useEffect,useMemo,useRef,useState} from 'react'
 import ScenarioToolbar, { type ScenarioDocument } from './ScenarioToolbar'
 import { canMoveArea, findLayoutProblems, machineCapacity, machinesPerArea } from './geometry'
 import PlantScene from './PlantScene'
+import SpatialOptimization from './SpatialOptimization'
 import {analyzePlant,optimizePlant,simulatePlant} from './api'
 import {demoPlant,demoProduction} from './demo'
 import type {Area,Plant,Station,LayoutAnalysis,SimResult} from './types'
@@ -21,6 +22,8 @@ export default function App(){
  const [travelSpeed,setTravelSpeed]=useState(demoProduction.travel_speed_m_min)
  const [editMode,setEditMode]=useState(true)
  const [snap,setSnap]=useState(.5)
+ const [asIs,setAsIs]=useState<Plant|null>(null)
+ const [viewAsIs,setViewAsIs]=useState(false)
  const currentPlant=useRef(plant)
  const [stage,setStage]=useState(0)
  const [selected,setSelected]=useState('corte')
@@ -73,6 +76,8 @@ export default function App(){
    setOperations(data.operations)
    setQuantity(data.quantity)
    setTravelSpeed(data.travel_speed_m_min)
+   setAsIs(data.as_is??null)
+   setViewAsIs(false)
    setSelected(data.plant.areas[0]?.id||'')
    setStage(0)
    invalidate()
@@ -93,7 +98,12 @@ export default function App(){
  },[playing,simulation,maxTime,speed])
  async function evaluate(){
   setBusy(true);setMessage('');setPlaying(false)
-  try{setAnalysis(await analyzePlant(plant));setStage(1)}
+  try{
+    setAnalysis(await analyzePlant(plant))
+    if(stage===0||!asIs)setAsIs(structuredClone(plant))
+    setViewAsIs(false)
+    setStage(1)
+  }
   catch(e){setMessage('No se pudo evaluar la distribución. Comprueba la API: '+String(e))}
   finally{setBusy(false)}
  }
@@ -113,10 +123,17 @@ export default function App(){
   }catch(e){setMessage('No se pudo simular: '+String(e))}
   finally{setBusy(false)}
  }
- function reset(){setPlant(structuredClone(demoPlant));currentPlant.current=structuredClone(demoPlant);setStations(structuredClone(demoProduction.stations));setOperations(structuredClone(demoProduction.operations));setTravelSpeed(30);setQuantity(12);setStage(0);setSelected('corte');setMessage('');invalidate()}
+ function reset(){setAsIs(null);setViewAsIs(false);setPlant(structuredClone(demoPlant));currentPlant.current=structuredClone(demoPlant);setStations(structuredClone(demoProduction.stations));setOperations(structuredClone(demoProduction.operations));setTravelSpeed(30);setQuantity(12);setStage(0);setSelected('corte');setMessage('');invalidate()}
+ function applyToBe(proposed:Plant){
+   currentPlant.current=proposed
+   setPlant(proposed)
+   setViewAsIs(false)
+   invalidate()
+   void analyzePlant(proposed).then(setAnalysis).catch(e=>setMessage('No se pudo analizar TO-BE: '+String(e)))
+ }
  const title=stages[stage]
  return <div className="shell">
-  <header className="topbar"><div className="brand"><div className="logo">I<span>3</span></div><div><strong>INDUSIM <em>3D</em></strong><small>SIMULACIÓN · OPTIMIZACIÓN · SLP</small></div></div><div className="build"><span className="live-dot"/> MVP 0.1 · THREE.JS</div></header>
+  <header className="topbar"><div className="brand"><div className="logo">I<span>3</span></div><div><strong>INDUSIM <em>3D</em></strong><small>SIMULACIÓN · OPTIMIZACIÓN · SLP</small></div></div><div className="build"><span className="live-dot"/> MVP 0.3 · THREE.JS</div></header>
   <div className="workspace">
    <aside className="sidebar">
     <span className="eyebrow">PROCESO INDUSTRIAL</span>
@@ -125,7 +142,7 @@ export default function App(){
    </aside>
    <main className="content">
     <div className="page-heading"><div><span className="eyebrow">INDUSIM / PROYECTO INDUSTRIAL</span><h1>{stage===0?'Datos de la planta':title}</h1><p>{stage===0?'Define espacios, flujos, máquinas y demanda antes de simular.':stage===1?'Analiza la distribución y compara alternativas de layout.':stage===2?'Observa los eventos operativos calculados por el motor.':'Indicadores gerenciales de la simulación y del análisis SLP.'}</p></div><div className="header-controls">
-    <ScenarioToolbar document={{schema_version:'indusim-3d/1',plant,stations,operations,quantity,travel_speed_m_min:travelSpeed}}
+    <ScenarioToolbar document={{schema_version:'indusim-3d/2',as_is:asIs,plant,stations,operations,quantity,travel_speed_m_min:travelSpeed}}
       onImport={loadScenario} onError={setMessage}/>
     <span className="pill">ETAPA 0{stage+1} / 04</span>
    </div></div>
@@ -155,9 +172,13 @@ export default function App(){
      <div className="actions"><p>Primero se configuran los parámetros. Después se evalúa el layout.</p><button className="btn primary" disabled={busy} onClick={evaluate}>{busy?'Analizando…':'Evaluar SLP y ver planta 3D →'}</button></div>
     </div>}
     {stage>=1&&<div className="split">
-      <section className="viewer-panel"><div className="viewer-title"><div><span className="eyebrow">CONSTRUCTOR INDUSTRIAL</span><h2>{plant.name}</h2></div><span className="pill">3D INTERACTIVO</span></div>
-       <div className="canvas-wrap"><PlantScene plant={plant} selected={selected} onSelect={setSelected} stations={stations} time={clock}
-         events={stage===2?simulation?.events||[]:[]} editMode={stage===1&&editMode} snap={snap}
+      <section className="viewer-panel"><div className="viewer-title"><div><span className="eyebrow">CONSTRUCTOR INDUSTRIAL · PLANO CARTESIANO</span><h2>{plant.name}</h2></div>
+       {stage===1&&asIs?<div className="plan-toggle">
+        <button className={'btn '+(viewAsIs?'primary':'secondary')} onClick={()=>setViewAsIs(true)}>AS-IS</button>
+        <button className={'btn '+(!viewAsIs?'primary':'secondary')} onClick={()=>setViewAsIs(false)}>TO-BE</button>
+       </div>:<span className="pill">3D INTERACTIVO</span>}</div>
+       <div className="canvas-wrap"><PlantScene plant={stage===1&&viewAsIs&&asIs?asIs:plant} selected={selected} onSelect={setSelected} stations={stations} time={clock}
+         events={stage===2?simulation?.events||[]:[]} editMode={stage===1&&editMode&&!viewAsIs} snap={snap}
          onAreaMove={moveArea} onMoveStart={()=>setPlaying(false)} onMoveComplete={()=>{void recalculateAfterDrag()}}/><div className="canvas-hint">Rotar: arrastrar · Zoom: rueda · Seleccionar: clic</div></div>
       </section>
       <aside className="inspector">
@@ -181,9 +202,11 @@ export default function App(){
         <button className="btn secondary full" disabled={busy} onClick={evaluate}>Recalcular SLP</button>
         <small className="caution">Estimación Manhattan entre centroides; no incluye corredores reales ni comprobaciones normativas.</small>
         </section>
-        <section className="panel"><span className="eyebrow">ÁREA SELECCIONADA</span><h2>{selectedArea?.name||'Seleccione un área'}</h2>{selectedArea&&<div className="fields cols2">{(['x','z','width','depth'] as const).map(k=><label key={k}>{k==='width'?'Ancho':k==='depth'?'Fondo':k.toUpperCase()} (m)<Num value={selectedArea[k]} min={k==='width'||k==='depth'?.25:0} onChange={v=>patchArea(selectedArea.id,k,v)}/></label>)}</div>}</section>
+        <section className="panel"><span className="eyebrow">ÁREA SELECCIONADA</span><h2>{selectedArea?.name||'Seleccione un área'}</h2>{selectedArea&&!viewAsIs&&<div className="fields cols2">{(['x','z','width','depth'] as const).map(k=><label key={k}>{k==='width'?'Ancho':k==='depth'?'Fondo':k.toUpperCase()} (m)<Num value={selectedArea[k]} min={k==='width'||k==='depth'?.25:0} onChange={v=>patchArea(selectedArea.id,k,v)}/></label>)}</div>}</section>
         <section className="panel"><span className="eyebrow">MATRIZ REL</span>{plant.relationships.map((r,i)=><div className="rel-row" key={i}><b>{r.rating}</b><span>{r.source} → {r.target}<small>{r.reason}</small></span></div>)}</section>
         <button className="btn primary full" disabled={busy||!analysis?.valid} onClick={run}>Ejecutar simulación →</button><button className="btn secondary full" onClick={()=>setStage(0)}>← Modificar datos</button>
+        {asIs&&<SpatialOptimization asIs={asIs} toBe={plant} onApply={applyToBe}
+          onRestore={()=>applyToBe(structuredClone(asIs))} onError={setMessage}/>}
        </>}
        {stage===2&&simulation&&<>
         <section className="panel"><span className="eyebrow">RELOJ VIRTUAL</span><h2>Reproducción</h2><div className="metric"><span>Tiempo simulado</span><strong>{fixed(clock)} / {fixed(maxTime)} min</strong></div>

@@ -87,5 +87,6 @@ class ProductionRequest(BaseModel):
         return self
 
 class Scenario(ProductionRequest):
-    schema_version: Literal["indusim-3d/1"] = "indusim-3d/1"
+    schema_version: Literal["indusim-3d/1", "indusim-3d/2"] = "indusim-3d/2"
+    as_is: Plant | None = None
 

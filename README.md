@@ -1,20 +1,24 @@
 # INDUSIM 3D · Simulador integral de producción industrial
 [![INDUSIM 3D checks](https://github.com/carlos-optimizacion/simulador-produccion-industrial-3d/actions/workflows/ci.yml/badge.svg)](https://github.com/carlos-optimizacion/simulador-produccion-industrial-3d/actions/workflows/ci.yml)
 
-**v0.2 · Prototipo funcional en desarrollo (no sistema industrial certificado).**
+**v0.3 · Prototipo funcional en desarrollo (no sistema industrial certificado).**
 
 Herramienta para comparar distribuciones de planta, analizar flujos SLP y visualizar **simulaciones de producción en un entorno tridimensional con Three.js / React Three Fiber**. La configuración de recursos se realiza antes del análisis y de la simulación.
 
 ## Funcionalidades implementadas
 - Configuración de dimensiones de planta, áreas rectangulares, separación y flujos From-To.
 - Matriz de relaciones **REL** A/E/I/O/U/X con motivos.
+- **Plano cartesiano métrico** X,Y (X,Z en Three.js), centros geométricos y trazos From-To.
+- Comparación **AS-IS vs. TO-BE** con línea base fija y validación de las mismas áreas, demanda, costos y restricciones.
+- Priorización de CORELAP por **TCR** (orden relacional; colocación completa pendiente).
+- **Recocido simulado** (semilla reproducible, restricciones geométricas, alternativas TO-BE y costo mínimo encontrado).
 - Cálculo SLP preliminar: distancias Manhattan entre centroides y costo de manejo por turno.
 - Validación geométrica: límites de planta y separaciones entre áreas.
 - Optimización **local por traslaciones** que acepta únicamente mejoras factibles; **no** es CRAFT ni garantiza óptimo global.
 - Escena 3D Three.js: selección y **arrastre de áreas** con ajuste a rejilla (0.25/0.5/1 m), rechazo de colisiones y distancias mínimas; máquinas por instancia y flujos visuales.
 - Simulación discreta determinista: colas FIFO, **operaciones simultáneas**, máquinas individuales identificadas, movimientos y finalización de órdenes.
 - Controles de reproducción, pausa, reloj virtual y resumen de productividad y utilización.
-- Importación y exportación de escenarios JSON independientes con esquema versionado y validación en FastAPI.
+- Importación y exportación de escenarios JSON independientes (v2 conserva AS-IS y TO-BE; se aceptan v1) con validación en FastAPI.
 - Pruebas automatizadas Python (incluyen simultaneidad, identidad de máquinas e importación) y compilación TypeScript/Vite en GitHub Actions.
 
 ## Limitaciones
@@ -22,7 +26,7 @@ Herramienta para comparar distribuciones de planta, analizar flujos SLP y visual
 - El arrastre y el rechazo geométrico simplificado están implementados; faltan rotación, puertas, pasillos navegables y validaciones normativas de seguridad o evacuación.
 - Las relaciones REL son preferencias cualitativas; **X no sustituye una restricción legal**.
 - El motor aún no usa SimPy ni modela fallas, mantenimiento, turnos, incertidumbre o rutas de productos diferenciadas.
-- CRAFT, CORELAP, ALDEP, PL/MILP, MPS/MRP y Job/Flow Shop están **planificados**, no implementados.
+- CRAFT, la **colocación geométrica completa de CORELAP**, ALDEP, PL/MILP, MPS/MRP y Job/Flow Shop están **planificados**, no implementados.
 - El render 3D utiliza representaciones geométricas simplificadas; faltan modelos industriales GLTF y logística física.
 - Los resultados son demostrativos y no sustentan decisiones de inversión sin contrastarlos con datos de operación.
 
@@ -77,12 +81,19 @@ npm run build
 | POST | /api/slp/analyze | Análisis de layout (objeto Plant) |
 | POST | /api/slp/optimize | Búsqueda local de distribución factible |
 | POST | /api/production/simulate | Simulación determinista y eventos |
-| POST | /api/scenarios/validate | Validación de escenario JSON v1 |
+| POST | /api/scenarios/validate | Validación JSON v1/v2 y línea base AS-IS |
+| POST | /api/slp/coordinates | Puntos cartesianos de áreas y centroides |
+| POST | /api/slp/corelap/order | Prioridades TCR de CORELAP |
+| POST | /api/slp/compare | Costos y recorridos AS-IS / TO-BE |
+| POST | /api/slp/anneal | Optimización con recocido simulado |
 
 ## Próximas fases
 - [Constructor 3D editable, validación geométrica y JSON](issues/1)
 - [Implementar CRAFT, CORELAP, ALDEP y rutas internas](issues/2)
 - [SimPy, programación matemática y planificación](issues/3)
+- [Accesos, pasillos y rutas transitables cartesianas](issues/6)
+
+**Especificación espacial:** [docs/CARTESIAN_SLP.md](docs/CARTESIAN_SLP.md).
 
 En Render, el archivo `render.yaml` está preparado como referencia. Antes de desplegar, verificar nombres, URL efectivas, CORS, límites de recursos y política de acceso. **La mera presencia de este archivo no implica que los servicios estén activos.**
 

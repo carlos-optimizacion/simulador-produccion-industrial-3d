@@ -5,3 +5,14 @@
 .scenario-actions .btn{font-size:11px;padding:10px 12px}
 .machine-tag{white-space:nowrap;padding:3px 6px;background:#0d2639de;border:1px solid #50768c;border-radius:5px;font-size:9px;color:#cfedf8}
 @media(max-width:900px){.header-controls{justify-content:flex-start}.page-heading{display:block}.header-controls{margin-top:18px}}
+
+/* Cartesian spatial planning, v0.3 */
+.plan-toggle{display:flex;gap:7px;align-items:center}
+.plan-toggle .btn{padding:9px 12px;font-size:12px}
+.spatial-stack{display:flex;flex-direction:column;gap:13px}
+.spatial-stack .panel{padding:18px}
+.map-figure{margin:14px 0 19px;padding:10px;border:1px solid #36546b;background:#0c1929;border-radius:11px}
+.map-figure figcaption{font-size:13px;font-weight:750;color:#e2f4fc;display:flex;justify-content:space-between;gap:7px}
+.map-figure figcaption small,.map-figure>small{font-size:10px;font-weight:400;color:#9cb9c9}
+.cartesian-map{display:block;width:100%;height:auto;max-height:290px;margin:11px 0 5px}
+.small-result{font-size:16px!important}
