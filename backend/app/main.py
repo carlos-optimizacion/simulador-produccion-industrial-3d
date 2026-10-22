@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI,HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from .models import Plant,LayoutRequest,ProductionRequest
+from .models import Plant,LayoutRequest,ProductionRequest,Scenario
 from .slp import analyze,improve
 from .simulation import simulate
 from .sample import SAMPLE_PLANT,SAMPLE_PRODUCTION
@@ -25,3 +25,9 @@ def slp_optimize(data:LayoutRequest):
 def production_simulate(req:ProductionRequest):
     if not analyze(req.plant)["valid"]: raise HTTPException(422,"Distribución inviable")
     return simulate(req)
+
+@app.post("/api/scenarios/validate")
+def scenario_validate(scenario:Scenario):
+    if not analyze(scenario.plant)["valid"]:
+        raise HTTPException(422,"El escenario contiene conflictos geométricos.")
+    return scenario.model_dump()

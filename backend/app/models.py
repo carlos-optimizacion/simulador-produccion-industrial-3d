@@ -56,6 +56,13 @@ class Station(BaseModel):
     area_id: str
     machines: int = Field(ge=1)
 
+def station_grid_capacity(area: Area) -> int:
+    """Maximum simplified 1.45m x 1.25m machine footprints on a 2.2m pitch."""
+    import math
+    nx = max(0, math.floor((area.width - 0.8) / 2.2) + 1)
+    nz = max(0, math.floor((area.depth - 0.8) / 2.2) + 1)
+    return nx * nz
+
 class ProductionRequest(BaseModel):
     plant: Plant
     stations: list[Station] = Field(min_length=1)
@@ -73,4 +80,12 @@ class ProductionRequest(BaseModel):
             raise ValueError("La estación debe pertenecer a un área")
         if any(o.station_id not in ids for o in self.operations):
             raise ValueError("Operación con estación inexistente")
+        for area in self.plant.areas:
+            count = sum(s.machines for s in self.stations if s.area_id == area.id)
+            if count > station_grid_capacity(area):
+                raise ValueError(f"El área {area.name} admite {station_grid_capacity(area)} máquinas en la representación 3D; configuradas: {count}.")
         return self
+
+class Scenario(ProductionRequest):
+    schema_version: Literal["indusim-3d/1"] = "indusim-3d/1"
+

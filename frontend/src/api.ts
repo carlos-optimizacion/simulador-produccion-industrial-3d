@@ -9,3 +9,5 @@ async function post<T>(path:string,payload:unknown):Promise<T>{
 export const analyzePlant=(plant:Plant)=>post<LayoutAnalysis>('/api/slp/analyze',plant)
 export const optimizePlant=(plant:Plant)=>post<OptimizeResult>('/api/slp/optimize',{plant,steps:[4,2,1]})
 export const simulatePlant=(prod:Production)=>post<SimResult>('/api/production/simulate',prod)
+
+export const validateScenario=(data:unknown)=>post<import('./ScenarioToolbar').ScenarioDocument>('/api/scenarios/validate',data)

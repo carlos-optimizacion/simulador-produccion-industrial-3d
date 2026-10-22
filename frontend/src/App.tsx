@@ -1,4 +1,6 @@
-import {useEffect,useMemo,useState} from 'react'
+import {useEffect,useMemo,useRef,useState} from 'react'
+import ScenarioToolbar, { type ScenarioDocument } from './ScenarioToolbar'
+import { canMoveArea, findLayoutProblems, machineCapacity, machinesPerArea } from './geometry'
 import PlantScene from './PlantScene'
 import {analyzePlant,optimizePlant,simulatePlant} from './api'
 import {demoPlant,demoProduction} from './demo'
@@ -15,6 +17,11 @@ export default function App(){
  const [plant,setPlant]=useState<Plant>(()=>structuredClone(demoPlant))
  const [stations,setStations]=useState<Station[]>(()=>structuredClone(demoProduction.stations))
  const [quantity,setQuantity]=useState(12)
+ const [operations,setOperations]=useState(()=>structuredClone(demoProduction.operations))
+ const [travelSpeed,setTravelSpeed]=useState(demoProduction.travel_speed_m_min)
+ const [editMode,setEditMode]=useState(true)
+ const [snap,setSnap]=useState(.5)
+ const currentPlant=useRef(plant)
  const [stage,setStage]=useState(0)
  const [selected,setSelected]=useState('corte')
  const [analysis,setAnalysis]=useState<LayoutAnalysis|null>(null)
@@ -26,12 +33,55 @@ export default function App(){
  const [playing,setPlaying]=useState(false)
  const [speed,setSpeed]=useState(5)
  const selectedArea=plant.areas.find(a=>a.id===selected)
- const operations=demoProduction.operations.filter(o=>stations.some(s=>s.id===o.station_id))
+ const geometryProblems=findLayoutProblems(plant)
+ useEffect(()=>{currentPlant.current=plant},[plant])
  const maxTime=simulation?.makespan_min||0
  const lastEvent=useMemo(()=>simulation?.events.filter(e=>e.t<=clock).at(-1),[simulation,clock])
  function invalidate(){setAnalysis(null);setSimulation(null);setComparison(null);setPlaying(false);setClock(0)}
  function patchArea(id:string,key:keyof Area,value:number){setPlant(p=>({...p,areas:p.areas.map(a=>a.id===id?{...a,[key]:value}:a)}));invalidate()}
- function patchStation(id:string,delta:number){setStations(s=>s.map(x=>x.id===id?{...x,machines:Math.max(1,x.machines+delta)}:x));invalidate()}
+ function patchStation(id:string,delta:number){
+   const station=stations.find(s=>s.id===id)
+   if(!station)return
+   const area=plant.areas.find(a=>a.id===station.area_id)
+   if(delta>0&&area&&machinesPerArea(plant,stations,area.id)>=machineCapacity(area)){
+     setMessage('No caben más máquinas en '+area.name+'. Amplía el área o reduce el número de equipos.')
+     return
+   }
+   setStations(s=>s.map(x=>x.id===id?{...x,machines:Math.max(1,x.machines+delta)}:x))
+   invalidate()
+ }
+ function moveArea(id:string,x:number,z:number){
+   const source=currentPlant.current
+   if(!canMoveArea(source,id,x,z)){
+     setMessage('Movimiento rechazado: se invaden límites, áreas o separaciones mínimas.')
+     return
+   }
+   const next={...source,areas:source.areas.map(a=>a.id===id?{...a,x,z}:a)}
+   currentPlant.current=next
+   setPlant(next)
+   setMessage('')
+   invalidate()
+ }
+ async function recalculateAfterDrag(){
+   try{setAnalysis(await analyzePlant(currentPlant.current))}
+   catch(e){setMessage('No se pudo recalcular SLP: '+String(e))}
+ }
+ function loadScenario(data:ScenarioDocument){
+   currentPlant.current=data.plant
+   setPlant(data.plant)
+   setStations(data.stations)
+   setOperations(data.operations)
+   setQuantity(data.quantity)
+   setTravelSpeed(data.travel_speed_m_min)
+   setSelected(data.plant.areas[0]?.id||'')
+   setStage(0)
+   invalidate()
+   setMessage('Escenario importado y validado. Revisa la configuración antes de simular.')
+ }
+ function updateOperation(index:number,value:number){
+   setOperations(ops=>ops.map((op,i)=>i===index?{...op,minutes_per_unit:value}:op))
+   invalidate()
+ }
  useEffect(()=>{
    if(!playing||!simulation)return
    let raf=0;let last=performance.now()
@@ -58,12 +108,12 @@ export default function App(){
   try{
    const a=await analyzePlant(plant);setAnalysis(a)
    if(!a.valid){setMessage('Corrige los conflictos geométricos antes de simular.');return}
-   const result=await simulatePlant({plant,stations,operations,quantity,travel_speed_m_min:demoProduction.travel_speed_m_min})
+   const result=await simulatePlant({plant,stations,operations,quantity,travel_speed_m_min:travelSpeed})
    setSimulation(result);setClock(0);setStage(2);setPlaying(true)
   }catch(e){setMessage('No se pudo simular: '+String(e))}
   finally{setBusy(false)}
  }
- function reset(){setPlant(structuredClone(demoPlant));setStations(structuredClone(demoProduction.stations));setQuantity(12);setStage(0);setSelected('corte');setMessage('');invalidate()}
+ function reset(){setPlant(structuredClone(demoPlant));currentPlant.current=structuredClone(demoPlant);setStations(structuredClone(demoProduction.stations));setOperations(structuredClone(demoProduction.operations));setTravelSpeed(30);setQuantity(12);setStage(0);setSelected('corte');setMessage('');invalidate()}
  const title=stages[stage]
  return <div className="shell">
   <header className="topbar"><div className="brand"><div className="logo">I<span>3</span></div><div><strong>INDUSIM <em>3D</em></strong><small>SIMULACIÓN · OPTIMIZACIÓN · SLP</small></div></div><div className="build"><span className="live-dot"/> MVP 0.1 · THREE.JS</div></header>
@@ -74,7 +124,11 @@ export default function App(){
     <div className="aside-foot"><strong>Principio de diseño</strong><p>Los datos se ingresan antes de ejecutar la simulación. El entorno 3D representa la cantidad exacta de máquinas configuradas.</p><button className="btn secondary" onClick={reset}>↺ Restablecer demostración</button></div>
    </aside>
    <main className="content">
-    <div className="page-heading"><div><span className="eyebrow">INDUSIM / PROYECTO INDUSTRIAL</span><h1>{stage===0?'Datos de la planta':title}</h1><p>{stage===0?'Define espacios, flujos, máquinas y demanda antes de simular.':stage===1?'Analiza la distribución y compara alternativas de layout.':stage===2?'Observa los eventos operativos calculados por el motor.':'Indicadores gerenciales de la simulación y del análisis SLP.'}</p></div><span className="pill">ETAPA 0{stage+1} / 04</span></div>
+    <div className="page-heading"><div><span className="eyebrow">INDUSIM / PROYECTO INDUSTRIAL</span><h1>{stage===0?'Datos de la planta':title}</h1><p>{stage===0?'Define espacios, flujos, máquinas y demanda antes de simular.':stage===1?'Analiza la distribución y compara alternativas de layout.':stage===2?'Observa los eventos operativos calculados por el motor.':'Indicadores gerenciales de la simulación y del análisis SLP.'}</p></div><div className="header-controls">
+    <ScenarioToolbar document={{schema_version:'indusim-3d/1',plant,stations,operations,quantity,travel_speed_m_min:travelSpeed}}
+      onImport={loadScenario} onError={setMessage}/>
+    <span className="pill">ETAPA 0{stage+1} / 04</span>
+   </div></div>
     {message&&<div className="error" role="alert">{message} <button onClick={()=>setMessage('')}>×</button></div>}
     {stage===0&&<div className="configure">
       <section className="panel wide"><div className="section-title"><h2>01 · Dimensiones y áreas</h2><span className="pill">{plant.areas.length} áreas</span></div>
@@ -87,14 +141,38 @@ export default function App(){
        <div className="note">El motor calcula la capacidad según los equipos registrados. No agrega máquinas ficticias.</div>
       </section>
       <section className="panel wide"><h2>03 · Flujos From-To</h2><div className="scroll"><table><thead><tr><th>Origen</th><th>Destino</th><th>Und./turno</th><th>S/ por und·m</th></tr></thead><tbody>{plant.flows.map((f,i)=><tr key={i}><td>{f.source}</td><td>{f.target}</td><td><Num value={f.units_per_shift} step={1} onChange={v=>{setPlant(p=>({...p,flows:p.flows.map((x,j)=>i===j?{...x,units_per_shift:v}:x)}));invalidate()}}/></td><td><Num value={f.cost_per_unit_meter} step={.01} onChange={v=>{setPlant(p=>({...p,flows:p.flows.map((x,j)=>i===j?{...x,cost_per_unit_meter:v}:x)}));invalidate()}}/></td></tr>)}</tbody></table></div></section>
-      <div className="actions"><p>Primero se configuran los parámetros. Después se evalúa el layout.</p><button className="btn primary" disabled={busy} onClick={evaluate}>{busy?'Analizando…':'Evaluar SLP y ver planta 3D →'}</button></div>
+      <section className="panel wide"><h2>04 · Secuencia de operaciones y tiempos</h2>
+      <div className="fields cols3"><label>Velocidad de traslado (m/min)
+        <Num value={travelSpeed} min={.01} step={1} onChange={v=>{setTravelSpeed(v);invalidate()}}/></label>
+        <label>Unidades por orden<Num value={quantity} min={1} step={1} onChange={v=>{setQuantity(Math.max(1,Math.min(1000,Math.floor(v))));invalidate()}}/></label>
+      </div>
+      <div className="scroll"><table><thead><tr><th>Secuencia</th><th>Estación</th><th>Tiempo por unidad (min)</th></tr></thead><tbody>
+        {operations.map((op,i)=><tr key={i}><td>{i+1}</td><td>{stations.find(s=>s.id===op.station_id)?.name||op.station_id}</td>
+          <td><Num min={.01} step={.5} value={op.minutes_per_unit} onChange={v=>updateOperation(i,v)}/></td></tr>)}
+      </tbody></table></div>
+      {geometryProblems.length>0&&<div className="validation invalid">{geometryProblems.join(' ')}</div>}
+     </section>
+     <div className="actions"><p>Primero se configuran los parámetros. Después se evalúa el layout.</p><button className="btn primary" disabled={busy} onClick={evaluate}>{busy?'Analizando…':'Evaluar SLP y ver planta 3D →'}</button></div>
     </div>}
     {stage>=1&&<div className="split">
       <section className="viewer-panel"><div className="viewer-title"><div><span className="eyebrow">CONSTRUCTOR INDUSTRIAL</span><h2>{plant.name}</h2></div><span className="pill">3D INTERACTIVO</span></div>
-       <div className="canvas-wrap"><PlantScene plant={plant} selected={selected} onSelect={setSelected} stations={stations} time={clock} events={stage===2?simulation?.events||[]:[]}/><div className="canvas-hint">Rotar: arrastrar · Zoom: rueda · Seleccionar: clic</div></div>
+       <div className="canvas-wrap"><PlantScene plant={plant} selected={selected} onSelect={setSelected} stations={stations} time={clock}
+         events={stage===2?simulation?.events||[]:[]} editMode={stage===1&&editMode} snap={snap}
+         onAreaMove={moveArea} onMoveStart={()=>setPlaying(false)} onMoveComplete={()=>{void recalculateAfterDrag()}}/><div className="canvas-hint">Rotar: arrastrar · Zoom: rueda · Seleccionar: clic</div></div>
       </section>
       <aside className="inspector">
        {stage===1&&<>
+        <section className="panel"><span className="eyebrow">EDITOR DE PLANTA</span><h2>Edición en Three.js</h2>
+          <button className={'btn full '+(editMode?'primary':'secondary')} onClick={()=>setEditMode(v=>!v)}>
+            {editMode?'✥ Arrastrar áreas: ACTIVADO':'✥ Activar desplazamiento de áreas'}
+          </button>
+          <label>Salto de cuadrícula (m)
+            <select value={snap} onChange={e=>setSnap(Number(e.target.value))}>
+              <option value={.25}>0.25 m</option><option value={.5}>0.50 m</option><option value={1}>1.00 m</option>
+            </select>
+          </label>
+          <small className="caution">Arrastra una zona coloreada para moverla. Si se superpone con otra o sale del perímetro, el cambio se rechaza. Los movimientos aceptados recalculan SLP.</small>
+        </section>
         <section className="panel"><span className="eyebrow">ANÁLISIS SLP</span><h2>Evaluación del layout</h2>{analysis&&<div className="metric"><span>Costo por turno</span><strong>{money(analysis.material_handling_cost_per_shift)}</strong></div>}
         <div className={'validation '+(!analysis?.valid?'invalid':'')}>{analysis?.valid?'✓ Distribución geométricamente factible':analysis?analysis.violations.length+' conflicto(s) de geometría':'Pendiente de evaluar'}</div>
         {analysis?.violations.map((v,i)=><p className="problem" key={i}>{v.type}: {v.areas.join(', ')}</p>)}
