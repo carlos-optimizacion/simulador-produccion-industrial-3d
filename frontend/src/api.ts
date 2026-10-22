@@ -11,3 +11,8 @@ export const optimizePlant=(plant:Plant)=>post<OptimizeResult>('/api/slp/optimiz
 export const simulatePlant=(prod:Production)=>post<SimResult>('/api/production/simulate',prod)
 
 export const validateScenario=(data:unknown)=>post<import('./ScenarioToolbar').ScenarioDocument>('/api/scenarios/validate',data)
+
+export const compareLayouts=(as_is:Plant,to_be:Plant)=>post<import('./types').LayoutComparison>('/api/slp/compare',{as_is,to_be})
+export const corelapOrder=(plant:Plant)=>post<import('./types').CorelapOrder>('/api/slp/corelap/order',plant)
+export const annealPlant=(plant:Plant,params:{iterations:number;grid_step:number;temperature:number;cooling:number;seed:number})=>
+ post<import('./types').AnnealResult>('/api/slp/anneal',{plant,...params})
