@@ -16,3 +16,14 @@
 .map-figure figcaption small,.map-figure>small{font-size:10px;font-weight:400;color:#9cb9c9}
 .cartesian-map{display:block;width:100%;height:auto;max-height:290px;margin:11px 0 5px}
 .small-result{font-size:16px!important}
+
+/* Hierarchical production planning (APP → MPS → MRP) */
+.planning-page .page-heading{margin-bottom:18px}
+.plan-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px;margin-top:20px}
+.plan-layout .panel{min-width:0}
+.plan-layout table input{width:62px}
+.plan-layout .metric strong{font-size:20px}
+.planning-empty{min-height:100px;display:flex;align-items:center;color:#829fb2;line-height:1.7;font-size:13px;border:1px dashed #36536b;border-radius:9px;padding:15px}
+.planning-explain{font-size:12px;line-height:1.65;color:#9bb5c7}
+.planning-page .fields.cols3{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:1150px){.plan-layout{grid-template-columns:1fr}}

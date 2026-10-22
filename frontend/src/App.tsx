@@ -2,6 +2,7 @@ import {useEffect,useMemo,useRef,useState} from 'react'
 import ScenarioToolbar, { type ScenarioDocument } from './ScenarioToolbar'
 import { canMoveArea, findLayoutProblems, machineCapacity, machinesPerArea } from './geometry'
 import PlantScene from './PlantScene'
+import PlanningPage from './PlanningPage'
 import SpatialOptimization from './SpatialOptimization'
 import {analyzePlant,optimizePlant,simulatePlant} from './api'
 import {demoPlant,demoProduction} from './demo'
@@ -26,6 +27,7 @@ export default function App(){
  const [viewAsIs,setViewAsIs]=useState(false)
  const currentPlant=useRef(plant)
  const [stage,setStage]=useState(0)
+ const [planningOpen,setPlanningOpen]=useState(false)
  const [selected,setSelected]=useState('corte')
  const [analysis,setAnalysis]=useState<LayoutAnalysis|null>(null)
  const [simulation,setSimulation]=useState<SimResult|null>(null)
@@ -137,10 +139,12 @@ export default function App(){
   <div className="workspace">
    <aside className="sidebar">
     <span className="eyebrow">PROCESO INDUSTRIAL</span>
-    {stages.map((name,i)=><button key={name} className={'nav-step '+(stage===i?'active':'')} disabled={i>stage&&!(i===3&&!!simulation)} onClick={()=>{setPlaying(false);setStage(i)}}><span className="step-num">{i+1}</span>{name}</button>)}
-    <div className="aside-foot"><strong>Principio de diseño</strong><p>Los datos se ingresan antes de ejecutar la simulación. El entorno 3D representa la cantidad exacta de máquinas configuradas.</p><button className="btn secondary" onClick={reset}>↺ Restablecer demostración</button></div>
+    {stages.map((name,i)=><button key={name} className={'nav-step '+(stage===i?'active':'')} disabled={i>stage&&!(i===3&&!!simulation)} onClick={()=>{setPlaying(false);setPlanningOpen(false);setStage(i)}}><span className="step-num">{i+1}</span>{name}</button>)}
+    <button className={'nav-step '+(planningOpen?'active':'')} onClick={()=>{setPlaying(false);setPlanningOpen(true)}}>
+      <span className="step-num">Σ</span>APP · MPS · MRP
+    </button><div className="aside-foot"><strong>Principio de diseño</strong><p>Los datos se ingresan antes de ejecutar la simulación. El entorno 3D representa la cantidad exacta de máquinas configuradas.</p><button className="btn secondary" onClick={reset}>↺ Restablecer demostración</button></div>
    </aside>
-   <main className="content">
+   <main className="content">{planningOpen?<PlanningPage/>:<>
     <div className="page-heading"><div><span className="eyebrow">INDUSIM / PROYECTO INDUSTRIAL</span><h1>{stage===0?'Datos de la planta':title}</h1><p>{stage===0?'Define espacios, flujos, máquinas y demanda antes de simular.':stage===1?'Analiza la distribución y compara alternativas de layout.':stage===2?'Observa los eventos operativos calculados por el motor.':'Indicadores gerenciales de la simulación y del análisis SLP.'}</p></div><div className="header-controls">
     <ScenarioToolbar document={{schema_version:'indusim-3d/2',as_is:asIs,plant,stations,operations,quantity,travel_speed_m_min:travelSpeed}}
       onImport={loadScenario} onError={setMessage}/>
@@ -222,7 +226,7 @@ export default function App(){
       </aside>
     </div>}
     {stage===3&&<div className="note post">Resultados demostrativos de un sistema determinista. No constituyen un gemelo digital calibrado ni una evaluación de seguridad industrial.</div>}
-   </main>
+   </>}</main>
   </div>
  </div>
 }
