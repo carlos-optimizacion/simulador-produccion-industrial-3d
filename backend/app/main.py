@@ -37,6 +37,9 @@ def production_simulate(req:ProductionRequest):
 def scenario_validate(scenario:Scenario):
     if not analyze(scenario.plant)["valid"]:
         raise HTTPException(422,"El escenario contiene conflictos geométricos.")
+    if scenario.as_is is not None:
+        try: compare(scenario.as_is,scenario.plant)
+        except ValueError as exc: raise HTTPException(422,str(exc)) from exc
     return scenario.model_dump()
 
 @app.post("/api/slp/coordinates")

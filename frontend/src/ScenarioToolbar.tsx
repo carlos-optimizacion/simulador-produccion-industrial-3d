@@ -3,7 +3,8 @@ import type {Plant,Station,Operation} from './types'
 import {validateScenario} from './api'
 
 export type ScenarioDocument={
-  schema_version:'indusim-3d/1'
+  schema_version:'indusim-3d/1'|'indusim-3d/2'
+  as_is?:Plant|null
   plant:Plant
   stations:Station[]
   operations:Operation[]

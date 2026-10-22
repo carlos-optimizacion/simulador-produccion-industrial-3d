@@ -76,7 +76,7 @@ export default function App(){
    setOperations(data.operations)
    setQuantity(data.quantity)
    setTravelSpeed(data.travel_speed_m_min)
-   setAsIs(null)
+   setAsIs(data.as_is??null)
    setViewAsIs(false)
    setSelected(data.plant.areas[0]?.id||'')
    setStage(0)
@@ -142,7 +142,7 @@ export default function App(){
    </aside>
    <main className="content">
     <div className="page-heading"><div><span className="eyebrow">INDUSIM / PROYECTO INDUSTRIAL</span><h1>{stage===0?'Datos de la planta':title}</h1><p>{stage===0?'Define espacios, flujos, máquinas y demanda antes de simular.':stage===1?'Analiza la distribución y compara alternativas de layout.':stage===2?'Observa los eventos operativos calculados por el motor.':'Indicadores gerenciales de la simulación y del análisis SLP.'}</p></div><div className="header-controls">
-    <ScenarioToolbar document={{schema_version:'indusim-3d/1',plant,stations,operations,quantity,travel_speed_m_min:travelSpeed}}
+    <ScenarioToolbar document={{schema_version:'indusim-3d/2',as_is:asIs,plant,stations,operations,quantity,travel_speed_m_min:travelSpeed}}
       onImport={loadScenario} onError={setMessage}/>
     <span className="pill">ETAPA 0{stage+1} / 04</span>
    </div></div>

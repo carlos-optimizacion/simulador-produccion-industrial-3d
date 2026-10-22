@@ -81,3 +81,22 @@ def test_endpoints_expose_cartesian_and_comparison(original):
     sa=client.post("/api/slp/anneal",json={"plant":original.model_dump(),"iterations":120,"seed":42})
     assert sa.status_code==200
     assert sa.json()["after_cost"]<=sa.json()["before_cost"]
+
+def test_v2_scenario_roundtrip_retains_baseline(original):
+    from app.sample import SAMPLE_PRODUCTION
+    client=TestClient(app)
+    d={"schema_version":"indusim-3d/2","as_is":original.model_dump(),
+       **SAMPLE_PRODUCTION}
+    response=client.post("/api/scenarios/validate",json=d)
+    assert response.status_code==200
+    assert response.json()["as_is"]["areas"][0]["id"]=="almacen"
+
+def test_v2_rejects_apples_to_oranges(original):
+    from app.sample import SAMPLE_PRODUCTION
+    client=TestClient(app)
+    baseline=original.model_copy(deep=True)
+    baseline.flows[0].units_per_shift+=2
+    d={"schema_version":"indusim-3d/2","as_is":baseline.model_dump(),
+       **SAMPLE_PRODUCTION}
+    response=client.post("/api/scenarios/validate",json=d)
+    assert response.status_code==422

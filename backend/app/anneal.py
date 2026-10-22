@@ -62,7 +62,7 @@ def optimize_annealing(req:AnnealRequest)->dict:
         feasible+=1
         proposed_cost=analyze(candidate)["material_handling_cost_per_shift"]
         delta=proposed_cost-current_cost
-        if delta<0 or rng.random()<math.exp(-max(0.0,delta)/temp):
+        if delta<0 or rng.random()<math.exp(-max(0.0,delta)/max(temp,1e-12)):
             if delta>0: accepted_uphill+=1
             current,current_cost=candidate,proposed_cost
         if current_cost<best_cost-1e-8:
