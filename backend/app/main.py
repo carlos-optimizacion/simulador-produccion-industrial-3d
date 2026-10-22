@@ -10,18 +10,19 @@ from .spatial import compare,coordinate_map,corelap_priorities
 from .anneal import AnnealRequest,optimize_annealing
 from .planning import AggregateRequest, MPSRequest, optimize_aggregate, optimize_mps
 from .mrp import MRPRequest, explode_mrp
+from .lot_sizing import LotSizingRequest, QUEENSTOWN_CASE, compare_lot_sizing
 
 class CompareRequest(BaseModel):
     as_is:Plant
     to_be:Plant
 
-app=FastAPI(title="INDUSIM 3D API",version="0.4.0")
+app=FastAPI(title="INDUSIM 3D API",version="0.4.1")
 origins=["http://localhost:5173","http://127.0.0.1:5173"]
 if os.getenv("FRONTEND_ORIGIN"): origins.append(os.environ["FRONTEND_ORIGIN"].rstrip("/"))
 app.add_middleware(CORSMiddleware,allow_origins=origins,allow_credentials=False,
                    allow_methods=["GET","POST"],allow_headers=["Content-Type"])
 @app.get("/api/health")
-def health(): return {"status":"ok","version":"0.4.0"}
+def health(): return {"status":"ok","version":"0.4.1"}
 @app.get("/api/demo")
 def demo(): return {"plant":SAMPLE_PLANT,"production":SAMPLE_PRODUCTION}
 @app.post("/api/slp/analyze")
@@ -77,3 +78,12 @@ def planning_mps(data: MPSRequest):
 @app.post("/api/planning/mrp")
 def planning_mrp(data: MRPRequest):
     return explode_mrp(data)
+
+@app.get("/api/planning/lot-sizing/queenstown")
+def lot_sizing_queenstown():
+    """Teaching benchmark from the provided MPS slide deck."""
+    return QUEENSTOWN_CASE
+
+@app.post("/api/planning/lot-sizing/compare")
+def lot_sizing_compare(data: LotSizingRequest):
+    return compare_lot_sizing(data)

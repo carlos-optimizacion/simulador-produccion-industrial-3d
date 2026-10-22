@@ -1,11 +1,13 @@
 # INDUSIM 3D · Simulador integral de producción industrial
 [![INDUSIM 3D checks](https://github.com/carlos-optimizacion/simulador-produccion-industrial-3d/actions/workflows/ci.yml/badge.svg)](https://github.com/carlos-optimizacion/simulador-produccion-industrial-3d/actions/workflows/ci.yml)
 
-**v0.3 · Prototipo funcional en desarrollo (no sistema industrial certificado).**
+**v0.4.1 · Prototipo funcional en desarrollo (no sistema industrial certificado).**
 
 Herramienta para comparar distribuciones de planta, analizar flujos SLP y visualizar **simulaciones de producción en un entorno tridimensional con Three.js / React Three Fiber**. La configuración de recursos se realiza antes del análisis y de la simulación.
 
 ## Funcionalidades implementadas
+- Planificación agregada (APP), MPS con capacidad y MRP multinivel en v0.4.
+- Comparación de lotificación de MPS (L4L, una sola corrida, Silver-Meal, LUC, Wagner-Whitin) en v0.4.1, basada en el caso docente Queenstown.
 - Configuración de dimensiones de planta, áreas rectangulares, separación y flujos From-To.
 - Matriz de relaciones **REL** A/E/I/O/U/X con motivos.
 - **Plano cartesiano métrico** X,Y (X,Z en Three.js), centros geométricos y trazos From-To.
@@ -22,6 +24,7 @@ Herramienta para comparar distribuciones de planta, analizar flujos SLP y visual
 - Pruebas automatizadas Python (incluyen simultaneidad, identidad de máquinas e importación) y compilación TypeScript/Vite en GitHub Actions.
 
 ## Limitaciones
+- El APP todavía no incorpora backlog y políticas comparables tipo Dire Wolf; MPS no incluye setup binario en el MILP multi-SKU; MRP sigue sin programación simultánea de compras/producción.
 - Las distancias son rectilíneas **entre centroides**, no rutas reales por pasillos.
 - El arrastre y el rechazo geométrico simplificado están implementados; faltan rotación, puertas, pasillos navegables y validaciones normativas de seguridad o evacuación.
 - Las relaciones REL son preferencias cualitativas; **X no sustituye una restricción legal**.
@@ -86,6 +89,8 @@ npm run build
 | POST | /api/slp/corelap/order | Prioridades TCR de CORELAP |
 | POST | /api/slp/compare | Costos y recorridos AS-IS / TO-BE |
 | POST | /api/slp/anneal | Optimización con recocido simulado |
+
+**Auditoría de modelos de las PPT aportadas:** [docs/REVIEW_PPT_APP_MPS_MRP.md](docs/REVIEW_PPT_APP_MPS_MRP.md).
 
 ## Próximas fases
 - [Constructor 3D editable, validación geométrica y JSON](issues/1)
