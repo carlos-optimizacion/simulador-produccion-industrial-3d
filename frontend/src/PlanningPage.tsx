@@ -60,7 +60,10 @@ export default function PlanningPage(){
  async function runComparison(){
    setBusy('POLICY');setError('')
    try{
-     setPolicyResults(await callAPI('/api/planning/aggregate/scenarios',aggregatePayload()))
+     setPolicyResults(await callAPI<{
+       results:{policy:string;status:string;total_cost:number|null}[];
+       best_feasible_policy:string|null
+     }>('/api/planning/aggregate/scenarios',aggregatePayload()))
    }catch(e){setError('Comparación de escenarios APP: '+String(e))}
    finally{setBusy('')}
  }

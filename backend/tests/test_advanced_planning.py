@@ -58,6 +58,7 @@ def test_app_can_use_backlog_and_must_clear_before_final_period():
     case={**APP,"demand":[0,20],"initial_workers":1,"max_workers":1,
           "units_per_worker_period":10,"overtime_units_per_worker":0,
           "max_subcontract_per_period":0,"allow_backlog":True}
+    case["demand"]=[0,25]  # Total capacity is only 20 units across both periods
     with pytest.raises(ValueError,match="factible"):
         optimize_app_scenario(APPScenario.model_validate(case))
     case["demand"]=[20,0]
