@@ -35,6 +35,7 @@ jobs:
           status, head, html = request(WEB)
           assert status == 200, (status, html[:200])
           assert b'id="root"' in html and b"assets/" in html, html[:600]
+          assert b"index-Bp9HDWbW.js" in html, "Static site is still serving the pre-fix JS bundle"
           print("WEB: HTML responsive and references built assets", flush=True)
 
           status, head, data = request(API+"/api/health")
