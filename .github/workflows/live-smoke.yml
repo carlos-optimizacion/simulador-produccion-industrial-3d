@@ -6,7 +6,7 @@ on:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
     steps:
       - name: Validate public INDUSIM website and API
         shell: bash
@@ -67,3 +67,21 @@ jobs:
           print("CORS: web origin approved for POST", flush=True)
           print("ALL LIVE SMOKE TESTS PASSED", flush=True)
           PY
+
+      - name: Check out test scripts
+        uses: actions/checkout@v4
+      - name: Install Chromium browser test dependencies
+        shell: bash
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Run live browser user journeys
+        shell: bash
+        run: python .github/scripts/live_browser_test.py
+      - name: Save browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: indusim-live-browser-screenshots
+          path: indusim_live_*.png
+          if-no-files-found: ignore
