@@ -35,7 +35,8 @@ function AreaTile({
       offset.current={x:area.x-hitPoint.x,z:area.z-hitPoint.z}
       setDragging(true)
       onMoveStart()
-      e.target.setPointerCapture(e.pointerId)
+      const target=e.target as (EventTarget & {setPointerCapture?:(id:number)=>void}) | null
+      target?.setPointerCapture?.(e.pointerId)
     }
   }
   function move(e:ThreeEvent<PointerEvent>){
@@ -51,7 +52,8 @@ function AreaTile({
     e.stopPropagation()
     offset.current=null
     setDragging(false)
-    try{e.target.releasePointerCapture(e.pointerId)}catch{ /* already released */ }
+    const target=e.target as (EventTarget & {releasePointerCapture?:(id:number)=>void}) | null
+    try{target?.releasePointerCapture?.(e.pointerId)}catch{ /* already released */ }
     onMoveComplete()
   }
   return <mesh position={[0,.12,0]} receiveShadow
