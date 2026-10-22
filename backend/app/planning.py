@@ -39,6 +39,7 @@ class ProductSpec(BaseModel):
     manufacturing_lead_time:int = Field(ge=0,le=24,default=0)
     unit_production_cost:float = Field(ge=0,default=1)
     unit_holding_cost:float = Field(ge=0,default=0.2)
+    setup_cost:float = Field(ge=0,default=0)
 
 class MPSRequest(BaseModel):
     products:list[ProductSpec]=Field(min_length=1,max_length=20)
@@ -148,52 +149,76 @@ def optimize_aggregate(req:AggregateRequest)->dict:
               "No incluye cambios de productividad ni calendarios diarios"]}
 
 def optimize_mps(req:MPSRequest)->dict:
+    """Capacity-constrained integer lot scheduling with binary setup indicators.
+
+    Cost = produced quantity * unit cost + held inventory + fixed run cost.
+    Includes a limited noncumulative ATP for firm customer orders.
+    """
+    import math
     horizon=len(req.available_minutes_per_period)
-    pcount=len(req.products)
-    # Each product and time period: integer lots and ending inventory.
-    idx=lambda p,t,k:2*(p*horizon+t)+k
+    idx=lambda p,t,k:3*(p*horizon+t)+k
     unit_demand={p.sku:[max(req.forecast[p.sku][t],
                              req.firm_orders.get(p.sku,[0]*horizon)[t])
                          for t in range(horizon)] for p in req.products}
     costs=[];upper=[];rows=[]
     for p,product in enumerate(req.products):
         for t in range(horizon):
+            max_units=sum(unit_demand[product.sku][t:])+product.safety_stock
+            max_lots=max(1,math.ceil(max_units/product.lot_size))
+            if t<product.manufacturing_lead_time:max_lots=0
             costs.extend([product.lot_size*product.unit_production_cost,
-                          product.unit_holding_cost])
-            upper.extend([0 if t<product.manufacturing_lead_time else np.inf,np.inf])
-            eq={idx(p,t,1):1,idx(p,t,0):-product.lot_size}
-            if t>0:eq[idx(p,t-1,1)]=-1
+                          product.unit_holding_cost,product.setup_cost])
+            # lots, inventory, binary setup
+            upper.extend([max_lots,np.inf,1 if max_lots else 0])
+            balance={idx(p,t,1):1,idx(p,t,0):-product.lot_size}
+            if t>0:balance[idx(p,t-1,1)]=-1
             rhs=(product.initial_inventory if t==0 else 0)-unit_demand[product.sku][t]
-            rows.append((eq,rhs,rhs))
+            rows.append((balance,rhs,rhs))
             rows.append(({idx(p,t,1):1},product.safety_stock,np.inf))
+            rows.append(({idx(p,t,0):1,idx(p,t,2):-max_lots},-np.inf,0))
+            # A setup is charged if and only if at least one lot is completed.
+            rows.append(({idx(p,t,2):1,idx(p,t,0):-1},-np.inf,0))
     for t,available in enumerate(req.available_minutes_per_period):
-        cap={idx(p,t,0):spec.lot_size*req.minutes_per_unit[spec.sku]
+        capacity={idx(p,t,0):spec.lot_size*req.minutes_per_unit[spec.sku]
              for p,spec in enumerate(req.products)}
-        rows.append((cap,-np.inf,available))
+        rows.append((capacity,-np.inf,available))
         if req.aggregate_capacity_units is not None:
-            row={idx(p,t,0):spec.lot_size for p,spec in enumerate(req.products)}
-            rows.append((row,-np.inf,req.aggregate_capacity_units[t]))
+            limit={idx(p,t,0):spec.lot_size for p,spec in enumerate(req.products)}
+            rows.append((limit,-np.inf,req.aggregate_capacity_units[t]))
     x=_solve(costs,upper,rows)
     results=[]
     for p,product in enumerate(req.products):
         completion=[int(x[idx(p,t,0)])*product.lot_size for t in range(horizon)]
         ending=[int(x[idx(p,t,1)]) for t in range(horizon)]
+        setups=[int(x[idx(p,t,2)]) for t in range(horizon)]
         release=[0]*horizon
         for t,qty in enumerate(completion):
             if qty:
                 release[t-product.manufacturing_lead_time]+=qty
+        firm=req.firm_orders.get(product.sku,[0]*horizon)
+        atp=[None]*horizon
+        for t in range(horizon):
+            if t==0 or completion[t]:
+                next_run=next((u for u in range(t+1,horizon) if completion[u]>0),horizon)
+                atp[t]=(product.initial_inventory if t==0 else 0)+completion[t]-sum(firm[t:next_run])
         results.append({"sku":product.sku,"effective_demand":unit_demand[product.sku],
                         "planned_completions":completion,"planned_releases":release,
                         "projected_ending_inventory":ending,"lot_size":product.lot_size,
-                        "manufacturing_lead_time":product.manufacturing_lead_time})
+                        "manufacturing_lead_time":product.manufacturing_lead_time,
+                        "setups":setups,"setup_cost":product.setup_cost,
+                        "total_setup_cost":round(sum(setups)*product.setup_cost,2),
+                        "atp_non_cumulative":atp})
     capacity_used=[
         round(sum(x[idx(p,t,0)]*spec.lot_size*req.minutes_per_unit[spec.sku]
                   for p,spec in enumerate(req.products)),3)
         for t in range(horizon)]
-    return {"method":"MPS MILP entero con lotes, seguridad, capacidad y plazo de producción",
+    return {"method":"MPS MILP con setup binario, lotes y capacidad finita",
             "optimal":True,"periods":horizon,"products":results,
             "capacity_used_minutes":capacity_used,
             "available_minutes_per_period":req.available_minutes_per_period,
             "total_cost":round(float(sum(a*b for a,b in zip(x,costs))),2),
-            "demand_policy":"max(pronóstico, pedidos firmes) por SKU y periodo; no se suman",
-            "note":"La producción se modela como terminación del lote; se prohíben completaciones antes del lead time desde el inicio del horizonte."}
+            "demand_policy":"max(pronóstico, pedidos firmes) por SKU y periodo; aproximación",
+            "note":"ATP no acumulativo = inventario inicial (solo período 1) más MPS disponible "
+                   "menos pedidos firmes hasta la siguiente recepción MPS. "
+                   "El cálculo no incluye consumo real de pronóstico ni ATP acumulado. "
+                   "Setups, liberaciones y terminaciones están sujetos a la capacidad declarada."}

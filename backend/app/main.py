@@ -11,18 +11,19 @@ from .anneal import AnnealRequest,optimize_annealing
 from .planning import AggregateRequest, MPSRequest, optimize_aggregate, optimize_mps
 from .mrp import MRPRequest, explode_mrp
 from .lot_sizing import LotSizingRequest, QUEENSTOWN_CASE, compare_lot_sizing
+from .app_policies import APPScenario, optimize_app_scenario, compare_app_policies
 
 class CompareRequest(BaseModel):
     as_is:Plant
     to_be:Plant
 
-app=FastAPI(title="INDUSIM 3D API",version="0.4.1")
+app=FastAPI(title="INDUSIM 3D API",version="0.5.0")
 origins=["http://localhost:5173","http://127.0.0.1:5173"]
 if os.getenv("FRONTEND_ORIGIN"): origins.append(os.environ["FRONTEND_ORIGIN"].rstrip("/"))
 app.add_middleware(CORSMiddleware,allow_origins=origins,allow_credentials=False,
                    allow_methods=["GET","POST"],allow_headers=["Content-Type"])
 @app.get("/api/health")
-def health(): return {"status":"ok","version":"0.4.1"}
+def health(): return {"status":"ok","version":"0.5.0"}
 @app.get("/api/demo")
 def demo(): return {"plant":SAMPLE_PLANT,"production":SAMPLE_PRODUCTION}
 @app.post("/api/slp/analyze")
@@ -87,3 +88,14 @@ def lot_sizing_queenstown():
 @app.post("/api/planning/lot-sizing/compare")
 def lot_sizing_compare(data: LotSizingRequest):
     return compare_lot_sizing(data)
+
+@app.post("/api/planning/aggregate/v2")
+def planning_aggregate_with_policies(data: APPScenario):
+    try:
+        return optimize_app_scenario(data)
+    except ValueError as exc:
+        raise HTTPException(status_code=422,detail=str(exc)) from exc
+
+@app.post("/api/planning/aggregate/scenarios")
+def planning_aggregate_scenarios(data: APPScenario):
+    return compare_app_policies(data)
