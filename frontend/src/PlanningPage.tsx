@@ -12,7 +12,7 @@ const initialForecast:Record<Sku,number[]>={A:[12,14,12,14],B:[8,12,14,10]}
 const unitMinutes:Record<Sku,number>={A:4,B:6}
 const fmt=(n:number)=>new Intl.NumberFormat('es-PE',{maximumFractionDigits:2}).format(n)
 const soles=(n:number)=>new Intl.NumberFormat('es-PE',{style:'currency',currency:'PEN'}).format(n)
-const BACKEND=(import.meta.env.VITE_API_URL||'http://localhost:8000').replace(new RegExp('/
+const BACKEND=(import.meta.env.VITE_API_URL||'http://localhost:8000').replace(/[/]$/, '')
 async function callAPI<T>(endpoint:string,payload:unknown):Promise<T>{
  const response=await fetch(BACKEND+endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
  if(!response.ok){
