@@ -1,5 +1,5 @@
 import { Canvas, type ThreeEvent } from '@react-three/fiber'
-import { Html, OrbitControls, RoundedBox, Line } from '@react-three/drei'
+import { Billboard, Text, OrbitControls, RoundedBox, Line } from '@react-three/drei'
 import { useMemo, useRef, useState } from 'react'
 import { Plane, Vector3 } from 'three'
 import type { Area, Plant, Station, SimEvent } from './types'
@@ -87,9 +87,12 @@ function Equipment({area,stations,busy}:{area:Area;stations:Station[];busy:Set<s
       </mesh>:<mesh position={[0,.56,.14]} castShadow>
         <boxGeometry args={[.9,.12,.6]}/><meshStandardMaterial color="#a9c6d8"/>
       </mesh>}
-      <Html center position={[0,1.3,0]} distanceFactor={22} style={{pointerEvents:'none'}}>
-        <div className="machine-tag">{item.station.name} #{item.index+1}</div>
-      </Html>
+      <Billboard position={[0,1.35,0]} follow>
+        <Text fontSize={0.26} color="#e0f4ff" anchorX="center" anchorY="middle"
+          outlineWidth={0.024} outlineColor="#132235">
+          {item.station.name} #{item.index+1}
+        </Text>
+      </Billboard>
     </group>
   })}</>
 }
@@ -123,11 +126,13 @@ function Factory(p:Props & {onDragState:(active:boolean)=>void}){
       position={[area.x+area.width/2,0,area.z+area.depth/2]}>
       <AreaTile area={area} selected={selected} onSelect={onSelect} editMode={editMode} snap={snap}
         onAreaMove={onAreaMove} onMoveStart={begin} onMoveComplete={complete}/>
-      <Html center position={[0,1.85,0]} distanceFactor={18} style={{pointerEvents:'none'}}>
-        <div className={'scene-label'+(selected===area.id?' selected':'')}>
-          {area.name}<small>{area.width} × {area.depth} m</small>
-        </div>
-      </Html>
+      <Billboard position={[0,2.15,0]} follow>
+        <Text fontSize={0.63} color={selected===area.id?'#9efcf0':'#f0faff'}
+          maxWidth={Math.max(2,area.width-0.8)} anchorX="center" anchorY="middle"
+          outlineWidth={0.055} outlineColor="#0c1a2d">
+          {area.name}
+        </Text>
+      </Billboard>
       <Equipment area={area} stations={stations} busy={busy}/>
       {selected===area.id&&<mesh position={[0,.26,0]}>
         <boxGeometry args={[area.width+.3,.09,area.depth+.3]}/>
