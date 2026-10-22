@@ -26,6 +26,7 @@ class MRPRequest(BaseModel):
     items:list[ItemSpec]=Field(min_length=2,max_length=100)
     bom:list[BOMLine]=Field(min_length=1,max_length=300)
     mps_planned_completions:dict[str,list[int]]
+    end_item_gross_requirements:dict[str,list[int]] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_horizon_and_bom(self):
@@ -36,6 +37,12 @@ class MRPRequest(BaseModel):
         if not set(self.mps_planned_completions)<=available:
             raise ValueError("El MPS contiene productos no registrados en items")
         horizon=len(next(iter(self.mps_planned_completions.values())))
+        if not set(self.end_item_gross_requirements)<=set(self.mps_planned_completions):
+            raise ValueError("Demanda final con SKU fuera del plan maestro MPS")
+        for values in self.end_item_gross_requirements.values():
+            if len(values)!=horizon or any(x<0 for x in values):
+                raise ValueError("Demanda final con horizonte incoherente")
+
         if not (1<=horizon<=24):raise ValueError("Horizonte MRP entre 1 y 24 periodos")
         for data in self.mps_planned_completions.values():
             if len(data)!=horizon or any(q<0 for q in data):
@@ -82,6 +89,7 @@ def explode_mrp(req:MRPRequest)->dict:
     gross={id:[0]*horizon for id in indegree}
     result={}
     past_due=[]
+    shortages=[]
     while queue:
         sku=queue.popleft()
         item=item_by_id[sku]
@@ -97,13 +105,28 @@ def explode_mrp(req:MRPRequest)->dict:
                     past_due.append({"sku":sku,"needed_period":t+1,
                                      "release_period":target+1,"quantity":qty})
                 else:releases[target]+=qty
+            scheduled=item.scheduled_receipts or [0]*horizon
+            root_demand=req.end_item_gross_requirements.get(sku)
+            stock=item.on_hand
+            projected_ending=[]
+            if root_demand is not None:
+                for t,qty in enumerate(root_demand):
+                    stock+=scheduled[t]+planned_receipts[t]-qty
+                    projected_ending.append(stock)
+                    if stock<item.safety_stock:
+                        shortages.append({"sku":sku,"period":t+1,
+                            "available_vs_safety_stock":stock-item.safety_stock,
+                            "missing_units":item.safety_stock-stock})
             result[sku]={
-                "sku":sku,"kind":"mps_end_item","gross_requirements":[0]*horizon,
-                "scheduled_receipts":[0]*horizon,
+                "sku":sku,"kind":"mps_end_item",
+                "gross_requirements":list(root_demand) if root_demand is not None else [0]*horizon,
+                "scheduled_receipts":list(scheduled),
                 "net_requirements":[0]*horizon,
                 "planned_order_receipts":planned_receipts,
                 "planned_order_releases":releases,
-                "projected_inventory":None
+                "projected_inventory":projected_ending if root_demand is not None else None,
+                "inventory_validation":"checked" if root_demand is not None else "not_provided",
+                "initial_on_hand":item.on_hand
             }
         else:
             stock=item.on_hand
@@ -142,7 +165,9 @@ def explode_mrp(req:MRPRequest)->dict:
     return {"method":"MRP determinista multinivel (explosión, neteo, lotificación y desfase)",
             "horizon_periods":horizon,"items":list(result.values()),
             "release_before_horizon":past_due,
-            "feasible_within_horizon":not bool(past_due),
+            "end_item_shortages":shortages,
+            "feasible_within_horizon":not bool(past_due or shortages),
             "note":"Órdenes que requieren liberación anterior al horizonte son alertas; "
                    "las recepciones propuestas no están garantizadas sin anticipación/expedición. "
-                   "No valida capacidad de proveedores ni incertidumbre."}
+                   "Si se suministra demanda final se valida stock disponible, recibos MPS y faltantes. "
+                   "No recalcula el MPS ni valida capacidad de proveedores."}
