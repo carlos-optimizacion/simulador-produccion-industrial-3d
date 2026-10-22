@@ -1,26 +1,27 @@
 # INDUSIM 3D · Simulador integral de producción industrial
 [![INDUSIM 3D checks](https://github.com/carlos-optimizacion/simulador-produccion-industrial-3d/actions/workflows/ci.yml/badge.svg)](https://github.com/carlos-optimizacion/simulador-produccion-industrial-3d/actions/workflows/ci.yml)
 
-**v0.1 · Prototipo funcional inicial (no sistema industrial certificado).**
+**v0.2 · Prototipo funcional en desarrollo (no sistema industrial certificado).**
 
 Herramienta para comparar distribuciones de planta, analizar flujos SLP y visualizar **simulaciones de producción en un entorno tridimensional con Three.js / React Three Fiber**. La configuración de recursos se realiza antes del análisis y de la simulación.
 
-## Funcionalidades de la v0.1
+## Funcionalidades implementadas
 - Configuración de dimensiones de planta, áreas rectangulares, separación y flujos From-To.
 - Matriz de relaciones **REL** A/E/I/O/U/X con motivos.
 - Cálculo SLP preliminar: distancias Manhattan entre centroides y costo de manejo por turno.
 - Validación geométrica: límites de planta y separaciones entre áreas.
 - Optimización **local por traslaciones** que acepta únicamente mejoras factibles; **no** es CRAFT ni garantiza óptimo global.
-- Escena 3D con Three.js: selección de áreas, máquinas por estación y representación de flujos.
-- Simulación de eventos discretos determinista: colas, procesamiento, movimiento y finalización de órdenes.
+- Escena 3D Three.js: selección y **arrastre de áreas** con ajuste a rejilla (0.25/0.5/1 m), rechazo de colisiones y distancias mínimas; máquinas por instancia y flujos visuales.
+- Simulación discreta determinista: colas FIFO, **operaciones simultáneas**, máquinas individuales identificadas, movimientos y finalización de órdenes.
 - Controles de reproducción, pausa, reloj virtual y resumen de productividad y utilización.
-- Siete pruebas automatizadas Python y compilación TypeScript/Vite verificadas mediante GitHub Actions.
+- Importación y exportación de escenarios JSON independientes con esquema versionado y validación en FastAPI.
+- Pruebas automatizadas Python (incluyen simultaneidad, identidad de máquinas e importación) y compilación TypeScript/Vite en GitHub Actions.
 
 ## Limitaciones
 - Las distancias son rectilíneas **entre centroides**, no rutas reales por pasillos.
-- No existe todavía edición directa por arrastre ni validación normativa de seguridad, puertas o evacuación.
+- El arrastre y el rechazo geométrico simplificado están implementados; faltan rotación, puertas, pasillos navegables y validaciones normativas de seguridad o evacuación.
 - Las relaciones REL son preferencias cualitativas; **X no sustituye una restricción legal**.
-- El motor aún no usa SimPy ni modela fallas, mantenimiento, turnos, incertidumbre o múltiples rutas.
+- El motor aún no usa SimPy ni modela fallas, mantenimiento, turnos, incertidumbre o rutas de productos diferenciadas.
 - CRAFT, CORELAP, ALDEP, PL/MILP, MPS/MRP y Job/Flow Shop están **planificados**, no implementados.
 - El render 3D utiliza representaciones geométricas simplificadas; faltan modelos industriales GLTF y logística física.
 - Los resultados son demostrativos y no sustentan decisiones de inversión sin contrastarlos con datos de operación.
@@ -76,6 +77,7 @@ npm run build
 | POST | /api/slp/analyze | Análisis de layout (objeto Plant) |
 | POST | /api/slp/optimize | Búsqueda local de distribución factible |
 | POST | /api/production/simulate | Simulación determinista y eventos |
+| POST | /api/scenarios/validate | Validación de escenario JSON v1 |
 
 ## Próximas fases
 - [Constructor 3D editable, validación geométrica y JSON](issues/1)
