@@ -12,7 +12,7 @@ def run():
                   "--use-gl=angle","--use-angle=swiftshader"])
         page = browser.new_page(viewport={"width":1440,"height":900}, device_scale_factor=1)
         errors = []
-        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.on("pageerror", lambda e: errors.append(str(e)+"\\n"+str(e.stack)))
         response=page.goto(WEB,wait_until="domcontentloaded",timeout=90000)
         assert response and response.status==200
         page.get_by_role("heading",name="Datos de la planta").wait_for(timeout=90000)
